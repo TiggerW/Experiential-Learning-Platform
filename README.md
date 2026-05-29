@@ -97,15 +97,26 @@ BACKEND_URL=http://elp-api.example.com:4000
 
 ### 3. Start services
 
+**Local development** (hot reload, Next.js dev indicator visible):
+
 ```bash
 docker compose up -d --build
 ```
 
+**Production** (optimized build, no Next.js debug UI — use on EC2):
+
+```bash
+docker compose -f docker-compose.prod.yml up -d --build
+```
+
 On first run, this will automatically:
 
+- Wait for MySQL to be healthy before starting the API
 - Install frontend/backend dependencies (`npm install`)
 - Create the MySQL database and tables
 - Seed demo users and activity board data
+
+> First startup can take 1–2 minutes while MySQL initializes and the frontend production build completes.
 
 ### 4. Open the app
 
@@ -159,6 +170,15 @@ See [`.env.example`](.env.example) for the full template.
 | `JWT_SECRET` | No | JWT signing secret; default `dev-secret` (change in production) |
 
 Docker Compose injects database settings (`DATABASE_HOST=db`, etc.). You do not need `DATABASE_*` in `.env` when using Docker.
+
+### Docker Compose files
+
+| File | Use case |
+|------|----------|
+| `docker-compose.yml` | Local dev (`npm run dev`) |
+| `docker-compose.prod.yml` | Production / EC2 (`npm run build` + `npm start`) |
+
+MySQL is not exposed on port 3306 to the host (API connects via the Docker network `db`).
 
 ## Local development (without Docker)
 
@@ -222,6 +242,15 @@ The root [`.gitignore`](.gitignore) excludes:
 
 **Q: Can I run the app right after cloning?**  
 A: Yes. Run `cp .env.example .env`, add your API keys, then `docker compose up -d --build`.
+
+**Q: API returns 502 right after first `docker compose up`?**  
+A: MySQL may still be starting. Wait ~30s and run `docker compose restart backend`, or pull the latest compose files with DB healthchecks.
+
+**Q: Next.js debug button in the corner after deploy?**  
+A: You are running dev mode. Use `docker compose -f docker-compose.prod.yml up -d --build` instead.
+
+**Q: `next build` fails with `Cannot find module '@tailwindcss/postcss'`?**  
+A: Pull the latest code (Tailwind build packages are in `dependencies`), then `docker compose -f docker-compose.prod.yml up -d --build nextjs`.
 
 **Q: AI Chat shows "DEEPSEEK_API_KEY is not configured"**  
 A: Set the key in `.env` and restart the backend: `docker compose restart backend`

@@ -740,13 +740,28 @@ app.delete("/api/cards/:cardId", requireAuth, async (req, res) => {
   res.json({ ok: true });
 });
 
-initDatabase()
-  .then(() => {
-    app.listen(port, "0.0.0.0", () => {
-      console.log(`API listening on http://0.0.0.0:${port}`);
-    });
-  })
-  .catch((error) => {
-    console.error("Database initialization failed:", error);
-    process.exit(1);
-  });
+async function startServer() {
+  const maxAttempts = Number(process.env.DB_CONNECT_RETRIES || 20);
+  const delayMs = Number(process.env.DB_CONNECT_DELAY_MS || 3000);
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      await initDatabase();
+      app.listen(port, "0.0.0.0", () => {
+        console.log(`API listening on http://0.0.0.0:${port}`);
+      });
+      return;
+    } catch (error) {
+      if (attempt === maxAttempts) {
+        console.error("Database initialization failed:", error);
+        process.exit(1);
+      }
+      console.log(
+        `Database not ready (attempt ${attempt}/${maxAttempts}), retrying in ${delayMs}ms...`
+      );
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+    }
+  }
+}
+
+startServer();
