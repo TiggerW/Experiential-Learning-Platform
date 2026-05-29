@@ -1,0 +1,50 @@
+services:
+  db:
+    image: mysql:8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: password
+      MYSQL_DATABASE: skyline
+    ports:
+      - "3306:3306"
+    volumes:
+      - ./db_data:/var/lib/mysql
+
+  backend:
+    image: node:20-alpine
+    working_dir: /app
+    ports:
+      - "4000:4000"
+    environment:
+      NODE_ENV: development
+      PORT: 4000
+      PUBLIC_URL: ${BACKEND_URL}
+      CORS_ORIGIN: ${FRONTEND_URL}
+      DATABASE_HOST: db
+      DATABASE_USER: root
+      DATABASE_PASSWORD: password
+      DATABASE_NAME: skyline
+      GOOGLE_MAPS_API_KEY: ${GOOGLE_MAPS_API_KEY}
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY}
+    volumes:
+      - ./backend:/app
+    tty: true
+    command: sh -c "npm install && npm run dev"
+    depends_on:
+      - db
+
+  nextjs:
+    image: node:20-alpine
+    working_dir: /app
+    ports:
+      - "3000:3000"
+    environment:
+      API_URL: http://backend:4000
+      FRONTEND_URL: ${FRONTEND_URL}
+      NEXT_PUBLIC_API_URL: ${BACKEND_URL}
+      NEXT_PUBLIC_SITE_URL: ${FRONTEND_URL}
+    volumes:
+      - ./frontend:/app
+    tty: true
+    command: sh -c "npm install && npm run dev"
+    depends_on:
+      - backend
