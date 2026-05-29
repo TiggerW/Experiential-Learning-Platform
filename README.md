@@ -224,6 +224,18 @@ All `/api/*` routes except login require JWT: `Authorization: Bearer <token>`
 | POST | `/api/ai/chat` | AI chat |
 | GET | `/api/ai/chat/history` | AI chat history |
 
+## Graph Database Modeling
+
+
+| Type | Examples | Role |
+|------|----------|------|
+| **Nodes** | `Student`, `Teacher`, `Activity`, `Location`, `Skill`, `School`, `Class`, `WorkflowStage`, `Media` | Entities with properties (`name`, `email`, `activityDate`, `lat`/`lng`, `feedbackText`, …) |
+| **Relationships** | `PARTICIPATED_IN`, `LOCATED_AT`, `DEVELOPS`, `ADVISES`, `AT_STAGE`, `GAVE_FEEDBACK`, `ENROLLED_IN` | **Context** between entities—paths you traverse to answer insight questions |
+
+**Nodes** = things you point at. **Relationships** = how they connect (often verbs). Shared dimensions (`Location`, `Skill`, `Class`) become nodes so many students and activities link to the same context.
+
+
+
 ## Git & ignored files
 
 The root [`.gitignore`](.gitignore) excludes:
@@ -263,7 +275,3 @@ A: Backend uses `node --watch` and should hot-reload via Docker volumes. If not:
 
 **Q: Frontend UI doesn't update**  
 A: Run `docker compose restart nextjs`
-
-## License
-
-Private / educational project. All rights reserved unless otherwise specified.
