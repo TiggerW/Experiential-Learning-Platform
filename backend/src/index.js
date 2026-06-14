@@ -8,7 +8,7 @@ const multer = require("multer");
 const { pool, initDatabase } = require("./db");
 const { signToken, requireAuth } = require("./auth");
 const { getBoard } = require("./board-service");
-const { verifyNeo4jConnection } = require("./neo4j");
+const { ensureNeo4jAppUser, verifyNeo4jConnection } = require("./neo4j");
 const {
   initGraphSchema,
   syncCardGraph,
@@ -1471,6 +1471,7 @@ async function startServer() {
       console.log(
         `Learning dataset import complete: ${importResult.totalCards} cards, ${importResult.objectives} objectives`
       );
+      await ensureNeo4jAppUser();
       await verifyNeo4jConnection();
       await initGraphSchema();
       await fullGraphResync();

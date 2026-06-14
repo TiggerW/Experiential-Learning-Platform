@@ -7,6 +7,7 @@ services:
       MYSQL_DATABASE: skyline
     volumes:
       - ./db_data:/var/lib/mysql
+      - ./_db_init:/docker-entrypoint-initdb.d
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-ppassword"]
       interval: 5s
@@ -21,7 +22,8 @@ services:
       - "7474:7474"
       - "7687:7687"
     environment:
-      NEO4J_AUTH: ${NEO4J_USER:-skyline_admin}/${NEO4J_PASSWORD:?Set NEO4J_PASSWORD in .env}
+      # Neo4j Docker requires the initial admin user to be "neo4j"; backend creates NEO4J_USER on startup.
+      NEO4J_AUTH: neo4j/${NEO4J_PASSWORD:?Set NEO4J_PASSWORD in .env}
       NEO4J_PLUGINS: '["apoc"]'
     volumes:
       - neo4j_data:/data

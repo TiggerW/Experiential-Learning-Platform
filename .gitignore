@@ -7,8 +7,9 @@
 backup/
 *.zip
 
-# Database volume
+# Database volume & init dumps (local only — mount via docker-compose)
 db_data/
+_db_init/
 learning_content_dataset/
 
 # Dependencies

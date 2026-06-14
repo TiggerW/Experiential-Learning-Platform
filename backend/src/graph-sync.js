@@ -226,7 +226,9 @@ async function syncCardGraph(cardId) {
       `
       MATCH (a:Activity {mysqlId: $activityId}), (l:Location {checkpointId: $checkpointId})
       MERGE (a)-[:LOCATED_AT]->(l)
-      MERGE (s:Student {mysqlId: $studentId})-[:VISITED]->(l)
+      WITH l
+      MATCH (s:Student {mysqlId: $studentId})
+      MERGE (s)-[:VISITED]->(l)
       `,
       {
         activityId: String(card.id),

@@ -127,7 +127,9 @@ First run may take 1–2 minutes (MySQL init, npm install, dataset import, graph
 
 ### 5. Neo4j Browser
 
-Open http://localhost:7474 (or your Neo4j subdomain in production). Sign in with the Bolt URI and credentials defined in your `.env` file (`NEO4J_USER`, `NEO4J_PASSWORD`). Do not commit credentials to the repository.
+Open http://localhost:7474 (or your Neo4j subdomain in production). Sign in with the Bolt URI and your app credentials (`NEO4J_USER`, `NEO4J_PASSWORD` from `.env`). Do not commit credentials to the repository.
+
+> **How auth works:** Docker starts Neo4j with the built-in `neo4j` user (same `NEO4J_PASSWORD`). On backend startup, `skyline_admin` (or your `NEO4J_USER`) is created automatically if missing. Use `NEO4J_USER` for Browser and API access.
 
 > **Security:** Use a strong, unique password before exposing Neo4j Browser on a public subdomain. Generate one with e.g. `openssl rand -base64 24`.
 
