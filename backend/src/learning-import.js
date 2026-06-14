@@ -1,5 +1,6 @@
 const fs = require("fs");
 const path = require("path");
+const crypto = require("crypto");
 function getPool() {
   return require("./db").pool;
 }
@@ -58,12 +59,71 @@ function findImageFile(studentDir, imageName) {
   return null;
 }
 
-function copyImageToUploads(sourcePath, uploadsDir) {
-  const ext = path.extname(sourcePath) || ".jpg";
-  const filename = `dataset-${Date.now()}-${Math.round(Math.random() * 1e9)}${ext}`;
+function datasetFilenameForSource(studentKey, imageName, sourcePath) {
+  const ext = path.extname(sourcePath) || path.extname(imageName) || ".jpg";
+  const hash = crypto
+    .createHash("sha1")
+    .update(`${studentKey}/${imageName}`)
+    .digest("hex")
+    .slice(0, 16);
+  return `dataset-${hash}${ext.toLowerCase()}`;
+}
+
+function extractUploadFilename(imageUrl) {
+  const match = String(imageUrl || "").match(/\/uploads\/([^/?#]+)$/);
+  return match ? match[1] : null;
+}
+
+function copyImageToUploads(sourcePath, uploadsDir, studentKey, imageName) {
+  const filename = datasetFilenameForSource(studentKey, imageName, sourcePath);
   const targetPath = path.join(uploadsDir, filename);
-  fs.copyFileSync(sourcePath, targetPath);
+  if (!fs.existsSync(targetPath)) {
+    fs.copyFileSync(sourcePath, targetPath);
+  }
   return filename;
+}
+
+async function deleteDatasetUploadFilesForStudent(studentId, uploadsDir) {
+  const pool = getPool();
+  const [rows] = await pool.query(
+    `
+    SELECT ci.image_url
+    FROM card_images ci
+    JOIN board_cards c ON c.id = ci.card_id
+    JOIN board_columns bc ON bc.id = c.column_id
+    WHERE bc.student_id = ?
+    `,
+    [studentId]
+  );
+
+  for (const row of rows) {
+    const filename = extractUploadFilename(row.image_url);
+    if (!filename || !filename.startsWith("dataset-")) continue;
+    const filePath = path.join(uploadsDir, filename);
+    if (fs.existsSync(filePath)) {
+      fs.unlinkSync(filePath);
+    }
+  }
+}
+
+async function pruneOrphanedDatasetUploads(uploadsDir) {
+  if (!fs.existsSync(uploadsDir)) return 0;
+
+  const pool = getPool();
+  const [rows] = await pool.query("SELECT image_url FROM card_images");
+  const referenced = new Set();
+  for (const row of rows) {
+    const filename = extractUploadFilename(row.image_url);
+    if (filename) referenced.add(filename);
+  }
+
+  let removed = 0;
+  for (const filename of fs.readdirSync(uploadsDir)) {
+    if (!filename.startsWith("dataset-") || referenced.has(filename)) continue;
+    fs.unlinkSync(path.join(uploadsDir, filename));
+    removed += 1;
+  }
+  return removed;
 }
 
 function buildMapDescription(locationName, mapInputText) {
@@ -285,6 +345,8 @@ async function importStudentDataset(studentEmail, uploadsDir, publicUrl) {
   const postTripColumn = columns.find((col) => col.stage_key === "post_trip");
   if (!actualTripColumn) return { imported: 0 };
 
+  await deleteDatasetUploadFilesForStudent(studentId, uploadsDir);
+
   await pool.query(
     `
     DELETE ci FROM card_images ci
@@ -364,7 +426,7 @@ async function importStudentDataset(studentEmail, uploadsDir, publicUrl) {
       const imageName = allImageNames[imageIndex];
       const sourcePath = findImageFile(studentDir, imageName);
       if (!sourcePath) continue;
-      const filename = copyImageToUploads(sourcePath, uploadsDir);
+      const filename = copyImageToUploads(sourcePath, uploadsDir, studentMeta.chineseName, imageName);
       const imageUrl = `${publicUrl}/uploads/${filename}`;
       await pool.query("INSERT INTO card_images (card_id, image_url, sort_order) VALUES (?, ?, ?)", [
         cardId,
@@ -400,7 +462,7 @@ async function importStudentDataset(studentEmail, uploadsDir, publicUrl) {
       const imageName = unmatchedImages[imageIndex];
       const sourcePath = findImageFile(studentDir, imageName);
       if (!sourcePath) continue;
-      const filename = copyImageToUploads(sourcePath, uploadsDir);
+      const filename = copyImageToUploads(sourcePath, uploadsDir, studentMeta.chineseName, imageName);
       await pool.query("INSERT INTO card_images (card_id, image_url, sort_order) VALUES (?, ?, ?)", [
         summaryCardId,
         `${publicUrl}/uploads/${filename}`,
@@ -541,7 +603,8 @@ async function importAllLearningContent(uploadsDir, publicUrl) {
     totalCards += result.imported || 0;
   }
   const objectives = await importCurriculumObjectives();
-  return { totalCards, objectives };
+  const removedOrphans = await pruneOrphanedDatasetUploads(uploadsDir);
+  return { totalCards, objectives, removedOrphans };
 }
 
 module.exports = {

@@ -1460,17 +1460,21 @@ app.delete("/api/students/:studentId/skills/:recordId", requireAuth, async (req,
 async function startServer() {
   const maxAttempts = Number(process.env.DB_CONNECT_RETRIES || 20);
   const delayMs = Number(process.env.DB_CONNECT_DELAY_MS || 3000);
+  const uploadsDir = path.resolve(__dirname, "../uploads");
+  const publicUrl = (process.env.PUBLIC_URL || "http://localhost:4000").replace(/\/$/, "");
+  let datasetImported = false;
 
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
     try {
       await initDatabase();
-      const uploadsDir = path.resolve(__dirname, "../uploads");
-      const publicUrl = (process.env.PUBLIC_URL || "http://localhost:4000").replace(/\/$/, "");
-      const { importAllLearningContent } = require("./learning-import");
-      const importResult = await importAllLearningContent(uploadsDir, publicUrl);
-      console.log(
-        `Learning dataset import complete: ${importResult.totalCards} cards, ${importResult.objectives} objectives`
-      );
+      if (!datasetImported && process.env.SKIP_LEARNING_IMPORT !== "1") {
+        const { importAllLearningContent } = require("./learning-import");
+        const importResult = await importAllLearningContent(uploadsDir, publicUrl);
+        console.log(
+          `Learning dataset import complete: ${importResult.totalCards} cards, ${importResult.objectives} objectives, ${importResult.removedOrphans || 0} orphan uploads removed`
+        );
+        datasetImported = true;
+      }
       await ensureNeo4jAppUser();
       await verifyNeo4jConnection();
       await initGraphSchema();

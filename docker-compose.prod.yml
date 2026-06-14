@@ -55,6 +55,7 @@ services:
       GOOGLE_MAPS_API_KEY: ${GOOGLE_MAPS_API_KEY}
       DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY}
       JWT_SECRET: ${JWT_SECRET:-dev-secret}
+      SKIP_LEARNING_IMPORT: ${SKIP_LEARNING_IMPORT:-1}
     volumes:
       - ./backend:/app
       - backend_uploads:/app/uploads
