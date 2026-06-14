@@ -4,6 +4,19 @@ import { createContext, useContext, useState, useCallback, useEffect, type React
 import { apiFetch } from "@/lib/api-client"
 import { useAuth } from "./auth-context"
 
+export interface LearningObjective {
+  id: string
+  objectiveCode: string
+  content: string
+  topicCode?: string
+  topic?: string
+  lessonCode?: string
+  lesson?: string
+  contentCode?: string
+  description?: string
+  category?: string
+}
+
 export interface ActivityCard {
   id: string
   title: string
@@ -13,12 +26,21 @@ export interface ActivityCard {
   images: string[]
   feedback?: string
   createdAt: Date
+  checkpointId?: string
+  lat?: number
+  lng?: number
+  recordType?: string
+  source?: string
+  learningObjectives?: LearningObjective[]
 }
 
 export interface Column {
   id: string
   title: string
   cards: ActivityCard[]
+  sortOrder?: number
+  isFixedStage?: boolean
+  stageKey?: string
 }
 
 export interface StudentData {
@@ -47,6 +69,8 @@ interface AppDataContextType {
     destIndex: number
   ) => Promise<void>
   addFeedback: (studentId: string, columnId: string, cardId: string, feedback: string) => Promise<void>
+  assignCardObjectives: (cardId: string, objectiveIds: string[]) => Promise<void>
+  refreshStudentBoard: (studentId: string) => Promise<void>
 }
 
 const AppDataContext = createContext<AppDataContextType | undefined>(undefined)
@@ -73,10 +97,14 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     return (data.columns || []).map((column: any) => ({
       id: column.id,
       title: column.title,
+      sortOrder: column.sortOrder,
+      isFixedStage: Boolean(column.isFixedStage),
+      stageKey: column.stageKey,
       cards: (column.cards || []).map((card: any) => ({
         ...card,
         activityDate: card.activityDate || "",
         createdAt: new Date(card.createdAt),
+        learningObjectives: card.learningObjectives || [],
       })),
     }))
   }, [])
@@ -171,7 +199,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     async (studentId: string, columns: Column[]) => {
       await apiFetch("/api/columns/reorder", {
         method: "PATCH",
-        body: JSON.stringify({ columnIds: columns.map((c) => c.id) }),
+        body: JSON.stringify({ columnIds: columns.map((c) => c.id), studentId }),
       })
       await refreshStudentBoard(studentId)
     },
@@ -259,6 +287,16 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     [refreshStudentBoard]
   )
 
+  const assignCardObjectives = useCallback(
+    async (cardId: string, objectiveIds: string[]) => {
+      await apiFetch(`/api/cards/${cardId}/objectives`, {
+        method: "PATCH",
+        body: JSON.stringify({ objectiveIds }),
+      })
+    },
+    []
+  )
+
   return (
     <AppDataContext.Provider
       value={{
@@ -275,6 +313,8 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         deleteCard,
         moveCard,
         addFeedback,
+        assignCardObjectives,
+        refreshStudentBoard,
       }}
     >
       {children}

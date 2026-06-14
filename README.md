@@ -1,122 +1,120 @@
-# Experiential Learning Platform
+# Skyline — Experiential Learning Platform
 
-The **Experiential Learning Platform** is an extracurricular learning activity system for Hong Kong primary students. It helps students plan and record field trips, lets teachers review and give feedback, visualizes activities on a map, and includes an AI learning assistant (EduBot).
+**Skyline** is an extracurricular experiential learning system for Hong Kong primary students. Students record field trips on a Kanban board; teachers review progress, link curriculum objectives, confirm skills, and use **Graph RAG AI** (Neo4j + DeepSeek) for grounded assistance and semi-auto content generation.
 
 ## Features
 
 | Role | Capabilities |
 |------|--------------|
-| **Student** | Kanban activity board, drag-and-drop cards, activity details (title, description, date, location, images), map view, AI assistant |
-| **Teacher** | View assigned students' activities, card feedback, edit student profiles, cross-student summaries (AI), switch students on the map |
+| **Student** | Kanban board (Pretrip / Actual Trip / Post Trip Reflection), card details, map view, **EduBot** AI assistant |
+| **Teacher** | View assigned students, card feedback, learning objectives, skill inference & confirmation, **Content Studio** (semi-auto generation), cross-student AI summaries |
 | **Admin** | Sign in (seed account) |
 
 ### Main modules
 
-- **Activity Board** — Customizable columns, drag-and-drop Kanban board
-- **Activity Map** — Leaflet map with activity locations (Google Geocoding)
-- **AI Chatbot (EduBot)** — DeepSeek API with role-based board context and persistent chat history
-- **Profile** — Student/teacher profile and password management
+| Module | Description |
+|--------|-------------|
+| **Activity Board** | Drag-and-drop Kanban with fixed workflow stages |
+| **Activity Map** | Leaflet map with checkpoint markers (龍躍頭文物徑) |
+| **EduBot** | DeepSeek chat with **Neo4j Graph RAG** + board context |
+| **Content Studio** | Semi-auto reflection prompts, follow-up activities, assessments |
+| **Learning Objectives** | P4 curriculum import + auto-link to activity cards |
+| **Skills** | 20-skill library, rule-based inference, teacher confirm/reject |
+| **Profile** | User profile and password management |
 
 ## Architecture
 
 ```
 ┌─────────────┐     ┌─────────────┐     ┌─────────────┐
 │   Next.js   │────▶│   Express   │────▶│   MySQL 8   │
-│  (port 3000)│     │  (port 4000)│     │  (port 3306)│
-└─────────────┘     └─────────────┘     └─────────────┘
-       │                    │
-       │                    ├── Google Places / Geocoding
-       │                    └── DeepSeek Chat API
-       └── Docker Compose (local development)
+│  (port 3000)│     │  (port 4000)│     │  (internal) │
+└─────────────┘     └──────┬──────┘     └─────────────┘
+       │                   │
+       │                   ├──────────────▶ Neo4j 5 (7474 / 7687)
+       │                   │                 Graph sync + Graph RAG
+       │                   ├── Google Places / Geocoding
+       │                   └── DeepSeek Chat API
+       └── Docker Compose
 ```
 
 | Layer | Stack |
 |-------|-------|
 | Frontend | Next.js 16, React 19, TypeScript, Tailwind CSS 4, Radix UI, @hello-pangea/dnd, Leaflet |
-| Backend | Node.js 20, Express, JWT, bcryptjs, multer, mysql2 |
-| Database | MySQL 8.0 |
-| AI | DeepSeek API |
-| Maps | Google Maps Platform (Places Autocomplete + Geocoding) |
+| Backend | Node.js 20, Express, JWT, bcryptjs, multer, mysql2, neo4j-driver |
+| Databases | MySQL 8.0 (operational) + **Neo4j 5** (learning graph) |
+| AI | DeepSeek API (EduBot + Content Studio) |
+| Maps | Google Maps Platform (Places + Geocoding) |
 
 ## Project structure
 
 ```
-experiential-learning-platform/
-├── frontend/           # Next.js frontend
-├── backend/            # Express API
-│   ├── src/
-│   │   ├── index.js    # API routes & AI chat
-│   │   ├── db.js       # Schema, migrations, seed data
-│   │   ├── auth.js     # JWT middleware
-│   │   └── board-service.js
-│   └── uploads/        # Uploaded images (local storage, not in Git)
+Skyline/
+├── frontend/                 # Next.js app
+├── backend/
+│   └── src/
+│       ├── index.js          # API routes
+│       ├── db.js             # MySQL schema & seed
+│       ├── graph-sync.js     # MySQL → Neo4j sync
+│       ├── graph-rag.js      # Graph RAG for EduBot
+│       ├── content-generator.js  # Content Studio generation
+│       ├── learning-import.js    # Dataset import
+│       ├── objective-matching.js # Auto-link LO
+│       └── skill-inference.js    # Skill suggestions
+├── learning_content_dataset/ # Student + curriculum data (local, gitignored)
+├── docs/
+│   ├── graph-database-proposal.md   # Task 3 schema & Cypher
+│   └── graphdb-rag-ai-proposal.md   # GraphDB-RAG AI proposal
 ├── docker-compose.yml
-├── .env.example        # Environment template (committed to Git)
-├── .env                # Local config (not committed — create yourself)
-└── db_data/            # MySQL data volume (not committed — created on first run)
+├── .env.example
+└── README.md
 ```
 
 ## Quick start (Docker Compose)
 
 ### Prerequisites
 
-- [Docker Desktop](https://www.docker.com/products/docker-desktop/) (includes Docker Compose)
-- Google Maps API key (Places + Geocoding, Hong Kong region) — map and location search
-- DeepSeek API key — AI Chat
+- [Docker Desktop](https://www.docker.com/products/docker-desktop/)
+- **Google Maps API key** (Places + Geocoding) — for map features
+- **DeepSeek API key** — for EduBot and Content Studio
 
-> **Runs without API keys:** Login, Activity Board, and card editing still work. Map geocoding and AI Chat require the corresponding keys.
+> Without API keys: login, board, and card editing still work. Map geocoding and AI features need the keys.
 
-### 1. Clone the repository
+### 1. Clone and configure
 
 ```bash
 git clone <your-repo-url>
-cd experiential-learning-platform
-```
-
-### 2. Configure environment variables
-
-```bash
+cd Skyline
 cp .env.example .env
 ```
 
-Edit `.env` and add your API keys at minimum:
+Edit `.env`:
 
 ```env
 FRONTEND_URL=http://localhost:3000
 BACKEND_URL=http://localhost:4000
 GOOGLE_MAPS_API_KEY=your_google_maps_api_key
 DEEPSEEK_API_KEY=your_deepseek_api_key
+NEO4J_USER=
+NEO4J_PASSWORD=
 ```
 
-For a custom domain (e.g. via `/etc/hosts`), use your actual hostnames:
+### 2. Add learning dataset (optional but recommended)
 
-```env
-FRONTEND_URL=http://elp.example.com:3000
-BACKEND_URL=http://elp-api.example.com:4000
-```
+Place the provided `learning_content_dataset/` folder at the project root (same level as `docker-compose.yml`). It is gitignored by default.
+
+On first startup the backend automatically imports:
+
+- 4 students' Map Location + Five Senses data → activity cards
+- P4 humanities/science curriculum → `learning_objectives`
+- Full **Neo4j graph resync** + objective auto-link + skill inference
 
 ### 3. Start services
-
-**Local development** (hot reload, Next.js dev indicator visible):
 
 ```bash
 docker compose up -d --build
 ```
 
-**Production** (optimized build, no Next.js debug UI — use on EC2):
-
-```bash
-docker compose -f docker-compose.prod.yml up -d --build
-```
-
-On first run, this will automatically:
-
-- Wait for MySQL to be healthy before starting the API
-- Install frontend/backend dependencies (`npm install`)
-- Create the MySQL database and tables
-- Seed demo users and activity board data
-
-> First startup can take 1–2 minutes while MySQL initializes and the frontend production build completes.
+First run may take 1–2 minutes (MySQL init, npm install, dataset import, graph sync).
 
 ### 4. Open the app
 
@@ -125,153 +123,179 @@ On first run, this will automatically:
 | Frontend | http://localhost:3000 |
 | Backend API | http://localhost:4000 |
 | Health check | http://localhost:4000/health |
+| **Neo4j Browser** | http://localhost:7474 |
 
-### 5. Stop and reset
+### 5. Neo4j Browser
+
+Open http://localhost:7474 (or your Neo4j subdomain in production). Sign in with the Bolt URI and credentials defined in your `.env` file (`NEO4J_USER`, `NEO4J_PASSWORD`). Do not commit credentials to the repository.
+
+> **Security:** Use a strong, unique password before exposing Neo4j Browser on a public subdomain. Generate one with e.g. `openssl rand -base64 24`.
+
+> **Changing credentials:** If Neo4j was previously initialized with different credentials, remove the data volume and restart: `docker compose down && docker volume rm skyline_neo4j_data` (volume name may vary — check `docker volume ls`).
+
+See [docs/graph-database-proposal.md](docs/graph-database-proposal.md) for schema diagrams and exploration Cypher.
+
+### 6. Stop and reset
 
 ```bash
-# Stop containers
 docker compose down
 
-# Reset database (delete db_data/ — next start will re-seed)
-docker compose down
+# Reset MySQL data (re-seed on next start)
 rm -rf db_data
 docker compose up -d --build
 ```
 
+Neo4j data persists in the `neo4j_data` Docker volume unless removed with `docker volume rm`.
+
 ## Demo accounts
 
-All seed accounts use password **`password123`**.
+All accounts use password **`password123`**.
 
-| Role | Email | Name |
-|------|-------|------|
-| Student | `student@edulearn.com` | Alex Johnson |
-| Teacher | `teacher@edulearn.com` | Dr. Sarah Williams |
-| Admin | `admin@edulearn.com` | Michael Chen |
-| Student | `student1@edulearn.com` | Emma Davis |
-| Student | `student2@edulearn.com` | James Wilson |
-| Student | `student3@edulearn.com` | Olivia Brown |
-| Student | `student4@edulearn.com` | Noah Taylor |
-| Student | `student5@edulearn.com` | Sophia Martin |
+| Role | Email | Name | Notes |
+|------|-------|------|-------|
+| Teacher | `teacher@edulearn.com` | Dr. Sarah Williams | Views student1–4 boards, Content Studio, Skills |
+| Student | `student1@edulearn.com` | Chan Yuet Kwan (陳玥鈞) | Dataset import — 4B |
+| Student | `student2@edulearn.com` | Chan Hon Lam (陳翰霖) | Dataset import — 4B |
+| Student | `student3@edulearn.com` | Hung Hou Long (洪号朗) | Dataset import — 4B |
+| Student | `student4@edulearn.com` | Wong Pak Yin (黃柏然) | Dataset import — 4B |
+| Student | `student5@edulearn.com` | Sophia Martin | Demo board only — 6B |
+| Student | `student@edulearn.com` | Alex Johnson | Demo board — 4A |
+| Admin | `admin@edulearn.com` | Michael Chen | Admin login |
 
-The teacher account can view boards and profiles for `student1`–`student5`.
+## Graph Database & Graph RAG
+
+### What is synced to Neo4j?
+
+| Node | Relationships |
+|------|---------------|
+| `Student`, `Teacher`, `Class` | `ADVISES`, `ENROLLED_IN` |
+| `Activity` (board cards) | `PARTICIPATED_IN`, `AT_STAGE`, `LOCATED_AT`, `ACHIEVES`, `HAS_MEDIA` |
+| `Location`, `Trip` | `VISITED`, `PART_OF` |
+| `LearningObjective` | `ACHIEVES` (from card links) |
+| `Skill` | `DEVELOPS`, `EVIDENCE_FOR` |
+| `WorkflowStage` | `HAS_STAGE`, `AT_STAGE` |
+| `Media` | `HAS_MEDIA` |
+
+MySQL remains the source of truth; Neo4j is synced on startup and on card/skill changes.
+
+### EduBot Graph RAG
+
+Before each chat reply, the backend:
+
+1. Detects question **intent** (locations, objectives, skills, reflection, …)
+2. Runs **Cypher queries** against Neo4j
+3. Injects subgraph results + board snapshot into the LLM prompt
+
+**Try as teacher:**
+
+- 「邊個學生去過天后宮？」
+- 「Who has not completed reflection yet?」
+- 「Compare skills across my students」
+
+### Content Studio (semi-auto generation)
+
+Teacher → **Content Studio** tab:
+
+1. Select student + activity card (e.g. 天后宮)
+2. Choose type: reflection / follow-up / assessment
+3. **Generate** → preview items → **Apply to Activity Board**
+
+Uses the same Graph RAG context plus curriculum objectives. See [docs/graphdb-rag-ai-proposal.md](docs/graphdb-rag-ai-proposal.md).
+
+### View schema visually
+
+| Method | How |
+|--------|-----|
+| **Neo4j Browser** | http://localhost:7474 → run `CALL apoc.meta.graph()` or subgraph MATCH queries |
+| **Markdown diagrams** | [docs/graph-database-proposal.md](docs/graph-database-proposal.md) — Mermaid ER + flowchart (renders on GitHub) |
+| **Cypher inventory** | `MATCH (n) RETURN labels(n)[0], count(*)` in Neo4j Browser |
 
 ## Environment variables
 
-See [`.env.example`](.env.example) for the full template.
+See [`.env.example`](.env.example).
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `FRONTEND_URL` | Yes | Public frontend URL (CORS & Next.js config) |
-| `BACKEND_URL` | Yes | Public backend URL (frontend API target) |
-| `GOOGLE_MAPS_API_KEY` | For maps | Location suggestions & geocoding |
-| `DEEPSEEK_API_KEY` | For AI | AI Chatbot |
-| `DEEPSEEK_MODEL` | No | Default: `deepseek-chat` |
-| `DEEPSEEK_BASE_URL` | No | Default: `https://api.deepseek.com` |
-| `JWT_SECRET` | No | JWT signing secret; default `dev-secret` (change in production) |
+| `FRONTEND_URL` | Yes | Public frontend URL (CORS) |
+| `BACKEND_URL` | Yes | Public backend URL |
+| `GOOGLE_MAPS_API_KEY` | For maps | Places + Geocoding |
+| `DEEPSEEK_API_KEY` | For AI | EduBot + Content Studio |
+| `NEO4J_USER` / `NEO4J_PASSWORD` | **Yes** (graph) | Neo4j credentials — set in `.env` only; never commit |
+| `DEEPSEEK_MODEL` | No | Default `deepseek-chat` |
+| `JWT_SECRET` | No | Default `dev-secret` |
 
-Docker Compose injects database settings (`DATABASE_HOST=db`, etc.). You do not need `DATABASE_*` in `.env` when using Docker.
-
-### Docker Compose files
-
-| File | Use case |
-|------|----------|
-| `docker-compose.yml` | Local dev (`npm run dev`) |
-| `docker-compose.prod.yml` | Production / EC2 (`npm run build` + `npm start`) |
-
-MySQL is not exposed on port 3306 to the host (API connects via the Docker network `db`).
-
-## Local development (without Docker)
-
-Requires Node.js 20+ and MySQL 8 installed locally.
-
-```bash
-# 1. Copy and configure env (include DATABASE_* — see .env.example comments)
-cp .env.example .env
-
-# 2. Backend
-cd backend && npm install
-export $(grep -v '^#' ../.env | xargs)   # macOS / Linux
-npm run dev
-
-# 3. Frontend (new terminal)
-cd frontend && npm install
-export NEXT_PUBLIC_API_URL=http://localhost:4000
-export NEXT_PUBLIC_SITE_URL=http://localhost:3000
-npm run dev
-```
-
-> Docker Compose runs in **dev mode** (`npm run dev`), which is suitable for local development. Production deployment requires separate build and process manager setup.
+Docker Compose injects `DATABASE_*` and `NEO4J_URI=bolt://neo4j:7687` for the backend automatically.
 
 ## API overview
 
 All `/api/*` routes except login require JWT: `Authorization: Bearer <token>`
 
+### Core
+
 | Method | Path | Description |
 |--------|------|-------------|
 | POST | `/api/auth/login` | Login |
 | GET | `/api/profile` | Get profile |
-| PATCH | `/api/profile` | Update profile |
-| PATCH | `/api/profile/password` | Change password |
-| GET | `/api/students` | List students (teacher) |
-| GET/PATCH | `/api/students/:id/profile` | Student profile (teacher) |
-| GET | `/api/board/:studentId` | Get board |
-| POST/PATCH/DELETE | `/api/columns` | Column CRUD |
+| GET | `/api/board/:studentId` | Get Kanban board |
 | POST/PATCH/DELETE | `/api/cards` | Card CRUD |
 | PATCH | `/api/cards/:id/feedback` | Teacher feedback |
-| GET | `/api/locations/suggest` | Location autocomplete |
-| POST | `/api/locations/geocode` | Batch geocoding |
-| POST | `/api/uploads` | Upload image |
-| POST | `/api/ai/chat` | AI chat |
-| GET | `/api/ai/chat/history` | AI chat history |
 
-## Graph Database Modeling
+### AI & Graph RAG
 
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/api/ai/chat` | EduBot with Graph RAG |
+| GET | `/api/ai/chat/history` | Chat history |
+| GET | `/api/content-studio/context` | Card + LO + skill context |
+| POST | `/api/ai/generate-content` | Generate reflection / follow-up / assessment |
+| POST | `/api/ai/apply-generated-content` | Apply selected items to board |
 
-| Type | Examples | Role |
-|------|----------|------|
-| **Nodes** | `Student`, `Teacher`, `Activity`, `Location`, `Skill`, `School`, `Class`, `WorkflowStage`, `Media` | Entities with properties (`name`, `email`, `activityDate`, `lat`/`lng`, `feedbackText`, …) |
-| **Relationships** | `PARTICIPATED_IN`, `LOCATED_AT`, `DEVELOPS`, `ADVISES`, `AT_STAGE`, `GAVE_FEEDBACK`, `ENROLLED_IN` | **Context** between entities—paths you traverse to answer insight questions |
+### Curriculum & skills
 
-**Nodes** = things you point at. **Relationships** = how they connect (often verbs). Shared dimensions (`Location`, `Skill`, `Class`) become nodes so many students and activities link to the same context.
+| Method | Path | Description |
+|--------|------|-------------|
+| GET/POST/PATCH/DELETE | `/api/learning-objectives` | Learning objectives CRUD |
+| POST | `/api/learning-objectives/import-curriculum` | Import curriculum xlsx |
+| POST | `/api/cards/auto-link-objectives` | Auto-link LO to cards |
+| GET/POST/PATCH/DELETE | `/api/skills` | Skill library |
+| GET/POST | `/api/students/:id/skills` | Student skill records |
+| POST | `/api/students/:id/skills/infer` | Re-run skill inference |
+| POST | `/api/students/:id/skills/:id/confirm` | Confirm suggested skill |
 
+## Documentation (assignment deliverables)
 
+| Document | Purpose |
+|----------|---------|
+| [README.md](README.md) | Setup instructions (this file) |
+| [docs/graph-database-proposal.md](docs/graph-database-proposal.md) | **Task 3** — GraphDB schema, Mermaid diagrams, Cypher examples |
+| [docs/graphdb-rag-ai-proposal.md](docs/graphdb-rag-ai-proposal.md) | **GraphDB-RAG AI** — pipeline, semi-auto generation |
 
 ## Git & ignored files
 
-The root [`.gitignore`](.gitignore) excludes:
-
 | Path | Reason |
 |------|--------|
-| `.env` | Contains API keys — do not commit |
-| `.env.example` | **Committed** — template for others |
-| `db_data/` | Local MySQL data |
-| `node_modules/` | Dependencies — installed after clone |
-| `backend/uploads/*` | User-uploaded images |
-| `frontend/.next/` | Next.js build cache |
-| `backup/` | Local backups |
+| `.env` | API keys — do not commit |
+| `learning_content_dataset/` | Large local dataset |
+| `db_data/` | MySQL volume |
+| `backend/uploads/*` | Uploaded images |
+| `frontend/.next/` | Build cache |
 
 ## FAQ
 
-**Q: Can I run the app right after cloning?**  
-A: Yes. Run `cp .env.example .env`, add your API keys, then `docker compose up -d --build`.
+**Q: Backend fails on first start?**  
+A: Wait ~30s for MySQL/Neo4j healthchecks, then `docker compose restart backend`.
 
-**Q: API returns 502 right after first `docker compose up`?**  
-A: MySQL may still be starting. Wait ~30s and run `docker compose restart backend`, or pull the latest compose files with DB healthchecks.
+**Q: AI shows "DEEPSEEK_API_KEY is not configured"?**  
+A: Set the key in `.env` and restart: `docker compose restart backend`.
 
-**Q: Next.js debug button in the corner after deploy?**  
-A: You are running dev mode. Use `docker compose -f docker-compose.prod.yml up -d --build` instead.
+**Q: No student dataset cards?**  
+A: Ensure `learning_content_dataset/` exists at project root and restart backend.
 
-**Q: `next build` fails with `Cannot find module '@tailwindcss/postcss'`?**  
-A: Pull the latest code (Tailwind build packages are in `dependencies`), then `docker compose -f docker-compose.prod.yml up -d --build nextjs`.
+**Q: How do I explore the graph?**  
+A: Open http://localhost:7474, login, and run queries from [graph-database-proposal.md](docs/graph-database-proposal.md).
 
-**Q: AI Chat shows "DEEPSEEK_API_KEY is not configured"**  
-A: Set the key in `.env` and restart the backend: `docker compose restart backend`
+**Q: Content Studio generate fails?**  
+A: Requires `DEEPSEEK_API_KEY`. Login as teacher and select a student with imported cards.
 
-**Q: No map markers or geocoding fails**  
-A: Enable Places and Geocoding APIs on Google Maps, and ensure the key works for Hong Kong
-
-**Q: Backend code changes don't apply**  
-A: Backend uses `node --watch` and should hot-reload via Docker volumes. If not: `docker compose restart backend`
-
-**Q: Frontend UI doesn't update**  
-A: Run `docker compose restart nextjs`
+**Q: Neo4j graph empty?**  
+A: Check backend logs for "Neo4j graph sync complete". Restart backend to trigger `fullGraphResync()`.

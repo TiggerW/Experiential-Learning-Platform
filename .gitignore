@@ -9,6 +9,7 @@ backup/
 
 # Database volume
 db_data/
+learning_content_dataset/
 
 # Dependencies
 node_modules/

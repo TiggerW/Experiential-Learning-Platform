@@ -4,7 +4,7 @@ import { useEffect, useState } from "react"
 import { useAuth } from "@/contexts/auth-context"
 import { Navbar } from "./navbar"
 
-type View = "board" | "map"
+type View = "board" | "map" | "objectives" | "skills" | "content-studio"
 
 interface DashboardLayoutProps {
   children: (view: View) => React.ReactNode
@@ -17,7 +17,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
   useEffect(() => {
     if (!user || user.role !== "teacher") return
     const savedView = localStorage.getItem(`teacher_dashboard_view_${user.id}`)
-    if (savedView === "board" || savedView === "map") {
+    if (savedView === "board" || savedView === "map" || savedView === "objectives" || savedView === "skills" || savedView === "content-studio") {
       setCurrentView(savedView)
     }
   }, [user])

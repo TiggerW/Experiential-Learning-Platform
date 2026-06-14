@@ -17,14 +17,24 @@ export function LoginPage({ onForgotPassword }: LoginPageProps) {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [error, setError] = useState("")
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError("")
+    if (!email.trim() || !password) {
+      setError("Please enter your email and password.")
+      return
+    }
+    setIsSubmitting(true)
     try {
-      await login(email, password)
+      await login(email.trim(), password)
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Login failed")
+      const message =
+        err instanceof Error ? err.message : typeof err === "string" ? err : "Login failed"
+      setError(message || "Login failed")
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
@@ -86,12 +96,17 @@ export function LoginPage({ onForgotPassword }: LoginPageProps) {
             </div>
             
             <Button 
-              type="submit" 
+              type="submit"
+              disabled={isSubmitting}
               className="w-full h-12 text-base font-semibold bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg hover:shadow-xl transition-all"
             >
-              Sign In
+              {isSubmitting ? "Signing in..." : "Sign In"}
             </Button>
-            {error && <p className="text-sm text-destructive">{error}</p>}
+            {error && (
+              <p className="text-sm text-destructive bg-destructive/10 border border-destructive/20 rounded-md px-3 py-2">
+                {error}
+              </p>
+            )}
           </form>
           
           <div className="text-center">

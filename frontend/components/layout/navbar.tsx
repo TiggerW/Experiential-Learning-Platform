@@ -16,11 +16,11 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { GraduationCap, LogOut, User, LayoutDashboard, MapPin } from "lucide-react"
+import { GraduationCap, LogOut, User, LayoutDashboard, MapPin, BookOpen, Sparkles, Wand2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { apiFetch } from "@/lib/api-client"
 
-type View = "board" | "map"
+type View = "board" | "map" | "objectives" | "skills" | "content-studio"
 
 interface NavbarProps {
   currentView: View
@@ -151,6 +151,52 @@ export function Navbar({ currentView, onViewChange }: NavbarProps) {
               <MapPin className="w-4 h-4" />
               <span className="hidden sm:inline">Activity Map</span>
             </Button>
+            {user.role === "teacher" && (
+              <>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => onViewChange("objectives")}
+                  className={cn(
+                    "gap-2 rounded-md px-4 transition-all",
+                    currentView === "objectives"
+                      ? "bg-card text-foreground shadow-sm"
+                      : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  <BookOpen className="w-4 h-4" />
+                  <span className="hidden sm:inline">Objectives</span>
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => onViewChange("skills")}
+                  className={cn(
+                    "gap-2 rounded-md px-4 transition-all",
+                    currentView === "skills"
+                      ? "bg-card text-foreground shadow-sm"
+                      : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  <Sparkles className="w-4 h-4" />
+                  <span className="hidden sm:inline">Skills</span>
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => onViewChange("content-studio")}
+                  className={cn(
+                    "gap-2 rounded-md px-4 transition-all",
+                    currentView === "content-studio"
+                      ? "bg-card text-foreground shadow-sm"
+                      : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  <Wand2 className="w-4 h-4" />
+                  <span className="hidden sm:inline">Content Studio</span>
+                </Button>
+              </>
+            )}
           </nav>
 
           {/* User Menu */}

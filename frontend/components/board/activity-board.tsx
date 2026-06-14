@@ -1,8 +1,8 @@
 "use client"
 
-import { useState, useCallback } from "react"
+import { useState, useCallback, useEffect } from "react"
 import { DragDropContext, Droppable, Draggable, type DropResult } from "@hello-pangea/dnd"
-import { useAppData, type Column, type ActivityCard } from "@/contexts/app-data-context"
+import { useAppData, type Column, type ActivityCard, type LearningObjective } from "@/contexts/app-data-context"
 import { useAuth } from "@/contexts/auth-context"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -28,7 +28,16 @@ interface StudentBoardProps {
   onCardSelect?: (card: ActivityCard, columnId: string) => void
 }
 
-function StudentBoard({ readOnly = false, studentId, onCardSelect }: StudentBoardProps) {
+function StudentBoard({
+  readOnly = false,
+  studentId,
+  onCardSelect,
+  showObjectives = false,
+  availableObjectives = [],
+}: StudentBoardProps & {
+  showObjectives?: boolean
+  availableObjectives?: LearningObjective[]
+}) {
   const {
     getStudentData,
     addColumn,
@@ -40,6 +49,8 @@ function StudentBoard({ readOnly = false, studentId, onCardSelect }: StudentBoar
     deleteCard,
     moveCard,
     addFeedback,
+    assignCardObjectives,
+    refreshStudentBoard,
   } = useAppData()
   const { user } = useAuth()
 
@@ -68,6 +79,9 @@ function StudentBoard({ readOnly = false, studentId, onCardSelect }: StudentBoar
       if (type === "column") {
         const newColumns = Array.from(studentData.columns)
         const [removed] = newColumns.splice(source.index, 1)
+        if (removed.isFixedStage) return
+        const fixedCount = newColumns.filter((col) => col.isFixedStage).length
+        if (destination.index < fixedCount) return
         newColumns.splice(destination.index, 0, removed)
         void reorderColumns(studentId, newColumns)
         return
@@ -138,6 +152,21 @@ function StudentBoard({ readOnly = false, studentId, onCardSelect }: StudentBoar
     )
   }
 
+  const handleSaveObjectives = async (objectiveIds: string[]) => {
+    if (!selectedCard) return
+    await assignCardObjectives(selectedCard.card.id, objectiveIds)
+    await refreshStudentBoard(studentId)
+    const selectedObjectives = availableObjectives.filter((item) => objectiveIds.includes(item.id))
+    setSelectedCard((prev) =>
+      prev
+        ? {
+            ...prev,
+            card: { ...prev.card, learningObjectives: selectedObjectives },
+          }
+        : prev
+    )
+  }
+
   if (!studentData) {
     return (
       <div className="flex items-center justify-center h-64 text-muted-foreground">
@@ -161,7 +190,7 @@ function StudentBoard({ readOnly = false, studentId, onCardSelect }: StudentBoar
                   key={column.id}
                   draggableId={column.id}
                   index={index}
-                  isDragDisabled={readOnly}
+                  isDragDisabled={readOnly || Boolean(column.isFixedStage)}
                 >
                   {(provided, snapshot) => (
                     <div
@@ -174,13 +203,13 @@ function StudentBoard({ readOnly = false, studentId, onCardSelect }: StudentBoar
                     >
                       {/* Column Header */}
                       <div className="p-3 border-b border-border/30 flex items-center gap-2">
-                        {!readOnly && (
+                        {!readOnly && !column.isFixedStage && (
                           <div {...provided.dragHandleProps} className="cursor-grab">
                             <GripVertical className="w-4 h-4 text-muted-foreground" />
                           </div>
                         )}
                         
-                        {editingColumnId === column.id && !readOnly ? (
+                        {editingColumnId === column.id && !readOnly && !column.isFixedStage ? (
                           <div className="flex items-center gap-1 flex-1">
                             <Input
                               value={editingColumnTitle}
@@ -215,7 +244,7 @@ function StudentBoard({ readOnly = false, studentId, onCardSelect }: StudentBoar
                             <span className="text-xs text-muted-foreground bg-background px-2 py-0.5 rounded-full">
                               {column.cards.length}
                             </span>
-                            {!readOnly && (
+                            {!readOnly && !column.isFixedStage && (
                               <>
                                 <Button
                                   size="icon"
@@ -306,6 +335,18 @@ function StudentBoard({ readOnly = false, studentId, onCardSelect }: StudentBoar
                                         <div className="flex items-center gap-1 mt-2 text-xs text-accent">
                                           <MapPin className="w-3 h-3" />
                                           <span className="truncate">{card.location}</span>
+                                        </div>
+                                      )}
+                                      {(card.learningObjectives?.length || 0) > 0 && (
+                                        <div className="mt-2 flex flex-wrap gap-1">
+                                          {card.learningObjectives?.slice(0, 2).map((objective) => (
+                                            <span
+                                              key={objective.id}
+                                              className="text-[10px] px-2 py-0.5 rounded-full bg-primary/10 text-primary"
+                                            >
+                                              {objective.objectiveCode}
+                                            </span>
+                                          ))}
                                         </div>
                                       )}
                                       {card.feedback && (
@@ -404,8 +445,11 @@ function StudentBoard({ readOnly = false, studentId, onCardSelect }: StudentBoar
         onClose={() => setSelectedCard(null)}
         onUpdate={readOnly && user?.role !== "teacher" ? undefined : handleUpdateCard}
         onSaveFeedback={user?.role === "teacher" ? handleSaveFeedback : undefined}
+        onSaveObjectives={showObjectives ? handleSaveObjectives : undefined}
+        availableObjectives={availableObjectives}
         readOnly={readOnly && user?.role !== "teacher"}
         showFeedback={user?.role === "teacher"}
+        showObjectives={showObjectives}
       />
     </>
   )
@@ -431,6 +475,7 @@ function StudentView() {
 // Teacher View Component
 function TeacherView() {
   const { students, currentStudentId, setCurrentStudentId } = useAppData()
+  const [availableObjectives, setAvailableObjectives] = useState<LearningObjective[]>([])
   const [profileOpen, setProfileOpen] = useState(false)
   const [studentName, setStudentName] = useState("")
   const [studentSchool, setStudentSchool] = useState("")
@@ -438,6 +483,19 @@ function TeacherView() {
   const [studentBio, setStudentBio] = useState("")
   const [savingProfile, setSavingProfile] = useState(false)
   const [profileMessage, setProfileMessage] = useState("")
+
+  useEffect(() => {
+    const loadObjectives = async () => {
+      try {
+        const res = await apiFetch("/api/learning-objectives")
+        const data = await res.json()
+        setAvailableObjectives(data.objectives || [])
+      } catch (error) {
+        console.error("Failed to load learning objectives", error)
+      }
+    }
+    void loadObjectives()
+  }, [])
 
   const loadStudentProfile = useCallback(async () => {
     if (!currentStudentId) return
@@ -510,7 +568,12 @@ function TeacherView() {
           </Button>
         </div>
       </div>
-      <StudentBoard studentId={currentStudentId} readOnly />
+      <StudentBoard
+        studentId={currentStudentId}
+        readOnly
+        showObjectives
+        availableObjectives={availableObjectives}
+      />
 
       <Dialog open={profileOpen} onOpenChange={setProfileOpen}>
         <DialogContent className="sm:max-w-md">

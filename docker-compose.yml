@@ -14,6 +14,24 @@ services:
       retries: 12
       start_period: 30s
 
+  neo4j:
+    image: neo4j:5
+    restart: unless-stopped
+    ports:
+      - "7474:7474"
+      - "7687:7687"
+    environment:
+      NEO4J_AUTH: ${NEO4J_USER:-skyline_admin}/${NEO4J_PASSWORD:?Set NEO4J_PASSWORD in .env}
+      NEO4J_PLUGINS: '["apoc"]'
+    volumes:
+      - neo4j_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:7474 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
   backend:
     image: node:20-alpine
     working_dir: /app
@@ -24,20 +42,26 @@ services:
       NODE_ENV: development
       PORT: 4000
       PUBLIC_URL: ${BACKEND_URL}
-      CORS_ORIGIN: ${FRONTEND_URL}
+      CORS_ORIGIN: ${CORS_ORIGIN:-${FRONTEND_URL}}
       DATABASE_HOST: db
       DATABASE_USER: root
       DATABASE_PASSWORD: password
       DATABASE_NAME: skyline
+      NEO4J_URI: bolt://neo4j:7687
+      NEO4J_USER: ${NEO4J_USER:-skyline_admin}
+      NEO4J_PASSWORD: ${NEO4J_PASSWORD:?Set NEO4J_PASSWORD in .env}
       GOOGLE_MAPS_API_KEY: ${GOOGLE_MAPS_API_KEY}
       DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY}
       JWT_SECRET: ${JWT_SECRET:-dev-secret}
     volumes:
       - ./backend:/app
+      - ./learning_content_dataset:/learning_content_dataset:ro
       - backend_uploads:/app/uploads
     command: sh -c "npm install && npm run dev"
     depends_on:
       db:
+        condition: service_healthy
+      neo4j:
         condition: service_healthy
 
   nextjs:
@@ -49,6 +73,7 @@ services:
     environment:
       API_URL: http://backend:4000
       FRONTEND_URL: ${FRONTEND_URL}
+      ALLOWED_DEV_ORIGINS: ${ALLOWED_DEV_ORIGINS:-skyline.tigerwebstudio.com,skyline-api.tigerwebstudio.com}
       NEXT_PUBLIC_API_URL: ${BACKEND_URL}
       NEXT_PUBLIC_SITE_URL: ${FRONTEND_URL}
     volumes:
@@ -60,3 +85,4 @@ services:
 
 volumes:
   backend_uploads:
+  neo4j_data:

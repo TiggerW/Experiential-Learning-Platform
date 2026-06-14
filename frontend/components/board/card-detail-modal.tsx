@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useCallback, useRef, useEffect } from "react"
-import { type ActivityCard } from "@/contexts/app-data-context"
+import { type ActivityCard, type LearningObjective } from "@/contexts/app-data-context"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -22,8 +22,11 @@ interface CardDetailModalProps {
   onClose: () => void
   onUpdate?: (updates: Partial<ActivityCard>) => void | Promise<void>
   onSaveFeedback?: (feedback: string) => void | Promise<void>
+  onSaveObjectives?: (objectiveIds: string[]) => void | Promise<void>
+  availableObjectives?: LearningObjective[]
   readOnly?: boolean
   showFeedback?: boolean
+  showObjectives?: boolean
 }
 
 export function CardDetailModal({
@@ -32,8 +35,11 @@ export function CardDetailModal({
   onClose,
   onUpdate,
   onSaveFeedback,
+  onSaveObjectives,
+  availableObjectives = [],
   readOnly = false,
   showFeedback = false,
+  showObjectives = false,
 }: CardDetailModalProps) {
   const [title, setTitle] = useState("")
   const [description, setDescription] = useState("")
@@ -50,6 +56,11 @@ export function CardDetailModal({
   const [savingFeedback, setSavingFeedback] = useState(false)
   const [feedbackStatus, setFeedbackStatus] = useState<"idle" | "success" | "error">("idle")
   const [feedbackMessage, setFeedbackMessage] = useState("")
+  const [selectedObjectiveIds, setSelectedObjectiveIds] = useState<string[]>([])
+  const [initialObjectiveIds, setInitialObjectiveIds] = useState<string[]>([])
+  const [savingObjectives, setSavingObjectives] = useState(false)
+  const [objectiveStatus, setObjectiveStatus] = useState<"idle" | "success" | "error">("idle")
+  const [objectiveMessage, setObjectiveMessage] = useState("")
   const fileInputRef = useRef<HTMLInputElement>(null)
   const locationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const lastCardIdRef = useRef<string | null>(null)
@@ -68,6 +79,9 @@ export function CardDetailModal({
     const startingFeedback = card.feedback || ""
     setFeedback(startingFeedback)
     setInitialFeedback(startingFeedback)
+    const startingObjectives = (card.learningObjectives || []).map((item) => item.id)
+    setSelectedObjectiveIds(startingObjectives)
+    setInitialObjectiveIds(startingObjectives)
     setCurrentImageIndex(0)
     setLocationSuggestions([])
     setShowSuggestions(false)
@@ -130,6 +144,34 @@ export function CardDetailModal({
       await onUpdate({ title, description, location, activityDate, images })
     }
     onClose()
+  }
+
+  const toggleObjective = (objectiveId: string) => {
+    setSelectedObjectiveIds((prev) =>
+      prev.includes(objectiveId) ? prev.filter((id) => id !== objectiveId) : [...prev, objectiveId]
+    )
+    if (objectiveStatus !== "idle") {
+      setObjectiveStatus("idle")
+      setObjectiveMessage("")
+    }
+  }
+
+  const handleSaveObjectives = async () => {
+    if (!onSaveObjectives) return
+    setSavingObjectives(true)
+    setObjectiveStatus("idle")
+    setObjectiveMessage("")
+    try {
+      await onSaveObjectives(selectedObjectiveIds)
+      setInitialObjectiveIds(selectedObjectiveIds)
+      setObjectiveStatus("success")
+      setObjectiveMessage("Learning objectives saved.")
+    } catch (error) {
+      setObjectiveStatus("error")
+      setObjectiveMessage(error instanceof Error ? error.message : "Failed to save objectives.")
+    } finally {
+      setSavingObjectives(false)
+    }
   }
 
   const handleSaveFeedback = async () => {
@@ -199,6 +241,8 @@ export function CardDetailModal({
 
   if (!card) return null
   const isFeedbackDirty = feedback !== initialFeedback
+  const isObjectivesDirty =
+    selectedObjectiveIds.slice().sort().join(",") !== initialObjectiveIds.slice().sort().join(",")
 
   return (
     <Dialog open={isOpen} onOpenChange={handleOpenChange}>
@@ -414,6 +458,71 @@ export function CardDetailModal({
               </div>
             )}
           </div>
+
+          {showObjectives && (
+            <div className="space-y-3 p-4 bg-primary/5 rounded-lg border border-primary/20">
+              <Label className="text-sm font-medium text-primary">Learning Objectives</Label>
+              <div className="max-h-56 overflow-y-auto space-y-2">
+                {availableObjectives.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No learning objectives available yet.</p>
+                ) : (
+                  availableObjectives.map((objective) => (
+                    <label
+                      key={objective.id}
+                      className="flex items-start gap-2 rounded-md border border-border/50 bg-card p-3 cursor-pointer hover:bg-muted/40"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selectedObjectiveIds.includes(objective.id)}
+                        onChange={() => toggleObjective(objective.id)}
+                        className="mt-1"
+                      />
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-foreground">
+                          {objective.objectiveCode} · {objective.content}
+                        </p>
+                        {(objective.topic || objective.lesson) && (
+                          <p className="text-xs text-muted-foreground mt-1">
+                            {[objective.topic, objective.lesson].filter(Boolean).join(" / ")}
+                          </p>
+                        )}
+                      </div>
+                    </label>
+                  ))
+                )}
+              </div>
+              {isObjectivesDirty && (
+                <Button onClick={handleSaveObjectives} disabled={savingObjectives} className="w-full">
+                  {savingObjectives ? "Saving..." : "Save Learning Objectives"}
+                </Button>
+              )}
+              {objectiveStatus !== "idle" && (
+                <p
+                  className={cn(
+                    "text-sm",
+                    objectiveStatus === "success" ? "text-success" : "text-destructive"
+                  )}
+                >
+                  {objectiveMessage}
+                </p>
+              )}
+            </div>
+          )}
+
+          {!showObjectives && (card.learningObjectives?.length || 0) > 0 && (
+            <div className="space-y-2 p-4 bg-muted/40 rounded-lg border border-border/40">
+              <Label className="text-sm font-medium">Learning Objectives</Label>
+              <div className="space-y-2">
+                {card.learningObjectives?.map((objective) => (
+                  <div key={objective.id} className="text-sm">
+                    <p className="font-medium text-foreground">
+                      {objective.objectiveCode} · {objective.content}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Teacher Feedback */}
           {showFeedback && (

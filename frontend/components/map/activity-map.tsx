@@ -244,9 +244,19 @@ export function ActivityMap() {
   }, [students, user, currentStudentId])
 
   useEffect(() => {
-    const uniqueLocations = [...new Set(locationCards.map((item) => item.card.location).filter(Boolean))]
-    if (uniqueLocations.length === 0) {
-      setLocationCoordinates({})
+    const directCoordinates: Record<string, [number, number]> = {}
+    const locationsToGeocode: string[] = []
+
+    for (const item of locationCards) {
+      if (typeof item.card.lat === "number" && typeof item.card.lng === "number") {
+        directCoordinates[item.card.location] = [item.card.lat, item.card.lng]
+      } else if (item.card.location && !locationsToGeocode.includes(item.card.location)) {
+        locationsToGeocode.push(item.card.location)
+      }
+    }
+
+    if (locationsToGeocode.length === 0) {
+      setLocationCoordinates(directCoordinates)
       return
     }
 
@@ -254,12 +264,12 @@ export function ActivityMap() {
       try {
         const res = await apiFetch("/api/locations/geocode", {
           method: "POST",
-          body: JSON.stringify({ locations: uniqueLocations }),
+          body: JSON.stringify({ locations: locationsToGeocode }),
         })
         const data = await res.json()
-        setLocationCoordinates(data.coordinates || {})
+        setLocationCoordinates({ ...directCoordinates, ...(data.coordinates || {}) })
       } catch (_error) {
-        setLocationCoordinates({})
+        setLocationCoordinates(directCoordinates)
       }
     }
 
@@ -270,7 +280,10 @@ export function ActivityMap() {
     () =>
       locationCards
         .map((item) => {
-          const position = locationCoordinates[item.card.location]
+          const position =
+            typeof item.card.lat === "number" && typeof item.card.lng === "number"
+              ? ([item.card.lat, item.card.lng] as [number, number])
+              : locationCoordinates[item.card.location]
           if (!position) return null
           return { ...item, position }
         })

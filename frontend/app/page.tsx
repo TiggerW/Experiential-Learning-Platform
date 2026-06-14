@@ -8,6 +8,9 @@ import { ForgotPasswordPage } from "@/components/auth/forgot-password-page"
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
 import { ActivityBoard } from "@/components/board/activity-board"
 import { ActivityMap } from "@/components/map/activity-map"
+import { LearningObjectivesPage } from "@/components/teacher/learning-objectives-page"
+import { SkillsPage } from "@/components/teacher/skills-page"
+import { ContentStudioPage } from "@/components/teacher/content-studio-page"
 import { AIChatbot } from "@/components/chat/ai-chatbot"
 
 type AuthView = "login" | "forgot-password"
@@ -28,7 +31,11 @@ function AppContent() {
       <DashboardLayout>
         {(view) => (
           <div className="h-[calc(100vh-4rem)]">
-            {view === "board" ? <ActivityBoard /> : <ActivityMap />}
+            {view === "board" && <ActivityBoard />}
+            {view === "map" && <ActivityMap />}
+            {view === "objectives" && <LearningObjectivesPage />}
+            {view === "skills" && <SkillsPage />}
+            {view === "content-studio" && <ContentStudioPage />}
           </div>
         )}
       </DashboardLayout>
